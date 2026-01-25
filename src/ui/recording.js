@@ -90,3 +90,7 @@ export function showGoodbye() {
 export function showModelChanged(model) {
     console.log(chalk.green(`\n✓ Whisper model changed to: ${chalk.bold(model)}`));
 }
+
+export function showClipboardSuccess() {
+    console.log(chalk.dim('  (Copied to clipboard)'));
+}

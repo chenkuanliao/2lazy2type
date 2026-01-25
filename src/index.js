@@ -2,6 +2,7 @@
 
 import readline from 'readline';
 import chalk from 'chalk';
+import clipboardy from 'clipboardy';
 import { runSetup, selectWhisperModel, MODEL_LIST } from './ui/menu.js';
 import * as recording from './ui/recording.js';
 import { startRecording, stopRecording, cancelRecording, cleanupRecording } from './recorder.js';
@@ -54,6 +55,14 @@ async function processRecording(audioPath, modelOverride = null) {
 
         // Show the transcription
         recording.showTranscription(text);
+
+        // Copy to clipboard
+        try {
+            await clipboardy.write(text);
+            recording.showClipboardSuccess();
+        } catch (error) {
+            recording.showError(`Failed to copy to clipboard: ${error.message}`);
+        }
 
         // Save as last successful recording
         lastRecordingPath = audioPath;

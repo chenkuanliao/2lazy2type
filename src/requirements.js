@@ -59,10 +59,22 @@ export async function checkRequirements() {
             await execAsync('rec --version');
         } catch (e) {
             console.log(chalk.yellow("  'rec' command not found, checking for 'sox'..."));
-            // Sometimes rec isn't in path but sox is? 
-            // node-audiorecorder for non-win32 defaults to 'rec'.
-            // If 'rec' is missing, user effectively misses the dependency for the app's current config.
             missing.push('SoX (specifically the "rec" command)');
+        }
+
+        // Check for clipboard tools on Linux
+        if (platform === 'linux') {
+            try {
+                // Check for any of the supported clipboard tools
+                await Promise.any([
+                    execAsync('xsel --version'),
+                    execAsync('xclip -version'),
+                    execAsync('wl-copy --version')
+                ]);
+            } catch (e) {
+                // All failed
+                missing.push('Clipboard utility (xsel, xclip, or wl-copy)');
+            }
         }
     }
 
@@ -87,6 +99,9 @@ export async function checkRequirements() {
             if (platform === 'darwin') console.log(' - Mac: brew install sox');
             else if (platform === 'linux') console.log(' - Linux: sudo apt install sox');
             else console.log(' - Windows: Download SoX from SourceForge and add to PATH, or "choco install sox.portable"');
+        }
+        if (missing.some(m => m.includes('Clipboard'))) {
+            console.log(' - Linux: sudo apt install xsel (or xclip, wl-clipboard)');
         }
 
         return { ok: false, pythonCommand };
