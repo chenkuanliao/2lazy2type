@@ -1,0 +1,26 @@
+{
+  "name": "2lazy2type",
+  "version": "1.0.0",
+  "description": "Voice transcription terminal app using Whisper",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "doctor": "node src/doctor.js"
+  },
+  "keywords": [
+    "voice",
+    "whisper",
+    "terminal",
+    "transcription"
+  ],
+  "author": "Chen-Kuan Liao",
+  "license": "MIT",
+  "dependencies": {
+    "@inquirer/prompts": "^7.2.1",
+    "chalk": "^5.3.0",
+    "conf": "^13.0.1",
+    "node-audiorecorder": "^3.0.0",
+    "ora": "^8.1.1"
+  }
+}
