@@ -31,8 +31,8 @@ export const MODEL_LIST = [
     { id: 'large', label: 'large', speed: '1x (Baseline)' }
 ];
 
-export async function selectWhisperModel() {
-    const currentModel = config.get('whisperModel') || 'base';
+export async function pickModel(defaultModel = null) {
+    const currentModel = defaultModel || config.get('whisperModel') || 'base';
 
     const model = await select({
         message: 'Select Whisper model (speed vs accuracy):',
@@ -43,6 +43,11 @@ export async function selectWhisperModel() {
         default: currentModel,
     });
 
+    return model;
+}
+
+export async function selectWhisperModel() {
+    const model = await pickModel();
     config.set('whisperModel', model);
     return model;
 }

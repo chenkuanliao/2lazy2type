@@ -3,7 +3,7 @@
 import readline from 'readline';
 import chalk from 'chalk';
 import clipboardy from 'clipboardy';
-import { runSetup, selectWhisperModel, MODEL_LIST } from './ui/menu.js';
+import { runSetup, selectWhisperModel, pickModel } from './ui/menu.js';
 import * as recording from './ui/recording.js';
 import { startRecording, stopRecording, cancelRecording, cleanupRecording } from './recorder.js';
 import { transcribe, cancelTranscription } from './transcriber.js';
@@ -164,17 +164,33 @@ async function handleKeypress(key) {
             return;
         }
 
-        // Find next model
-        const currentModelId = lastUsedModel || config.get('whisperModel') || 'base';
-        const currentIndex = MODEL_LIST.findIndex(m => m.id === currentModelId);
-        let nextIndex = currentIndex + 1;
-        if (nextIndex >= MODEL_LIST.length) nextIndex = 0;
+        try {
+            // Temporarily disable raw mode for inquirer
+            if (process.stdin.isTTY) {
+                process.stdin.setRawMode(false);
+            }
 
-        const nextModel = MODEL_LIST[nextIndex].id;
+            const currentModelId = lastUsedModel || config.get('whisperModel') || 'base';
+            const nextModel = await pickModel(currentModelId);
 
-        recording.showModelChanged(nextModel + " (Temporary for retry)");
-        await processRecording(lastRecordingPath, nextModel);
-        recording.showWaitingForInput();
+            // Re-enable raw mode
+            if (process.stdin.isTTY) {
+                process.stdin.setRawMode(true);
+            }
+            process.stdin.resume();
+
+            recording.showModelChanged(nextModel + " (Temporary for retry)");
+            await processRecording(lastRecordingPath, nextModel);
+            recording.showWaitingForInput();
+        } catch (error) {
+            // Re-enable raw mode if something went wrong
+            if (process.stdin.isTTY) {
+                process.stdin.setRawMode(true);
+            }
+            process.stdin.resume();
+            recording.showError(`Failed to select model: ${error.message}`);
+            recording.showWaitingForInput();
+        }
         return;
     }
 
