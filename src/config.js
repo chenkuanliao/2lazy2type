@@ -10,6 +10,8 @@ const config = new Conf({
     openaiApiKey: '',
     geminiApiKey: '',
     whisperModel: 'base', // Local Whisper model: tiny, base, small, medium, large, turbo
+    whisperLanguage: 'en',
+    audioDevice: '',
   }
 });
 

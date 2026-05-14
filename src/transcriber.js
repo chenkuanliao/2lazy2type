@@ -11,11 +11,12 @@ let isCancelled = false;
 
 export async function transcribe(audioFilePath, modelOverride = null) {
     const whisperModel = modelOverride || config.get('whisperModel') || 'base';
+    const whisperLanguage = config.get('whisperLanguage') || 'en';
     isCancelled = false;
 
     return new Promise((resolve, reject) => {
         const pythonCommand = config.get('pythonCommand') || 'python3';
-        currentProcess = spawn(pythonCommand, [scriptPath, audioFilePath, whisperModel]);
+        currentProcess = spawn(pythonCommand, [scriptPath, audioFilePath, whisperModel, whisperLanguage]);
 
         let stdout = '';
         let stderr = '';
@@ -46,7 +47,10 @@ export async function transcribe(audioFilePath, modelOverride = null) {
                 if (result.error) {
                     reject(new Error(result.error));
                 } else {
-                    resolve(result.text);
+                    resolve({
+                        text: result.text || '',
+                        stats: result.stats || null,
+                    });
                 }
             } catch (e) {
                 reject(new Error(`Failed to parse Whisper output: ${stdout}`));

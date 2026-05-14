@@ -45,11 +45,16 @@ async function processRecording(audioPath, modelOverride = null) {
 
     try {
         // Transcribe with Whisper
-        const text = await transcribe(audioPath, modelOverride);
+        const result = await transcribe(audioPath, modelOverride);
+        const text = result.text;
         spinner.stop();
 
         if (!text || text.trim() === '') {
-            recording.showError('No speech detected in recording');
+            if (result.stats && result.stats.peak < 0.01) {
+                recording.showError('No speech detected. The recording looks silent, so check your macOS microphone input/permission or set LAZY2TYPE_AUDIO_DEVICE.');
+            } else {
+                recording.showError('No speech detected in recording');
+            }
             return;
         }
 

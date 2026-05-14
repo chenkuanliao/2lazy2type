@@ -1,33 +1,118 @@
-import AudioRecorder from 'node-audiorecorder';
+import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import * as config from './config.js';
 
 const recordingsDir = os.tmpdir();
 
 
-let recorder = null;
+let recorderProcess = null;
 let currentFilePath = null;
-let fileStream = null;
+let recordingStderr = '';
+let closePromise = null;
+let closeError = null;
+
+function getRecorderCommand(filePath) {
+    if (process.platform === 'win32') {
+        return {
+            command: 'sox',
+            args: [
+                '-q',
+                '-t', 'waveaudio',
+                'default',
+                '-c', '1',
+                '-r', '16000',
+                '-b', '16',
+                '-e', 'signed-integer',
+                filePath
+            ]
+        };
+    }
+
+    return {
+        command: 'rec',
+        args: [
+            '-q',
+            '-c', '1',
+            '-r', '16000',
+            '-b', '16',
+            '-e', 'signed-integer',
+            '-t', 'wav',
+            filePath
+        ]
+    };
+}
+
+function waitForRecorderClose() {
+    if (!closePromise) {
+        return Promise.resolve();
+    }
+    return closePromise;
+}
+
+async function finishRecording(signal = 'SIGINT') {
+    if (!recorderProcess) {
+        throw new Error('No recording in progress');
+    }
+
+    const processToStop = recorderProcess;
+    processToStop.kill(signal);
+
+    await waitForRecorderClose();
+    recorderProcess = null;
+    closePromise = null;
+
+    if (closeError) {
+        const error = closeError;
+        closeError = null;
+        throw error;
+    }
+
+    if (!currentFilePath || !fs.existsSync(currentFilePath)) {
+        throw new Error(`Recording file was not created${recordingStderr ? `: ${recordingStderr.trim()}` : ''}`);
+    }
+
+    const stats = fs.statSync(currentFilePath);
+    if (stats.size < 1024) {
+        throw new Error(`Recording file is empty or incomplete${recordingStderr ? `: ${recordingStderr.trim()}` : ''}`);
+    }
+
+    return currentFilePath;
+}
 
 export function startRecording() {
     return new Promise((resolve, reject) => {
         const filename = `recording_${Date.now()}.wav`;
         currentFilePath = path.join(recordingsDir, filename);
+        recordingStderr = '';
+        closeError = null;
 
-        recorder = new AudioRecorder({
-            program: process.platform === 'win32' ? 'sox' : 'rec',
-            silence: 0,
-            thresholdStart: null,
-            thresholdStop: null,
-            keepSilence: true,
-        }, console);
+        const { command, args } = getRecorderCommand(currentFilePath);
+        const env = { ...process.env };
+        const audioDevice = config.get('audioDevice') || process.env.LAZY2TYPE_AUDIO_DEVICE;
+        if (audioDevice) {
+            env.AUDIODEV = audioDevice;
+        }
 
-        fileStream = fs.createWriteStream(currentFilePath, { encoding: 'binary' });
+        recorderProcess = spawn(command, args, { env });
+        closePromise = new Promise((closeResolve) => {
+            recorderProcess.once('close', (code, signal) => {
+                if (code && code !== 0 && signal !== 'SIGINT' && signal !== 'SIGTERM') {
+                    closeError = new Error(recordingStderr.trim() || `${command} exited with code ${code}`);
+                }
+                closeResolve();
+            });
+        });
 
-        recorder.start().stream().pipe(fileStream);
+        recorderProcess.stderr.on('data', (data) => {
+            recordingStderr += data.toString();
+        });
 
-        recorder.stream().on('error', (err) => {
+        recorderProcess.once('error', (err) => {
+            closeError = err;
+            recorderProcess = null;
+            closePromise = null;
             reject(err);
         });
 
@@ -36,56 +121,31 @@ export function startRecording() {
 }
 
 export function stopRecording() {
-    return new Promise((resolve, reject) => {
-        if (!recorder) {
-            reject(new Error('No recording in progress'));
-            return;
-        }
-
-        recorder.stop();
-
-        // Give it a moment to finish writing
-        setTimeout(() => {
-            if (fileStream) {
-                fileStream.end();
-            }
-            resolve(currentFilePath);
-            recorder = null;
-            fileStream = null;
-        }, 500);
-    });
+    return finishRecording('SIGINT');
 }
 
 export function cancelRecording() {
     return new Promise((resolve) => {
-        if (!recorder) {
+        if (!recorderProcess) {
             resolve(null);
             return;
         }
 
-        recorder.stop();
-
-        // Give it a moment, then cleanup the file
-        setTimeout(() => {
-            if (fileStream) {
-                fileStream.end();
-            }
-            const filePath = currentFilePath;
-            recorder = null;
-            fileStream = null;
-            currentFilePath = null;
-
-            // Delete the partial recording
-            if (filePath && fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-            }
-            resolve();
-        }, 300);
+        const filePath = currentFilePath;
+        finishRecording('SIGTERM')
+            .catch(() => null)
+            .finally(() => {
+                currentFilePath = null;
+                if (filePath && fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+                resolve();
+            });
     });
 }
 
 export function isCurrentlyRecording() {
-    return recorder !== null;
+    return recorderProcess !== null;
 }
 
 export function cleanupRecording(filePath) {

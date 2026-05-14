@@ -71,6 +71,17 @@ choco install ffmpeg sox.portable
     ```
     *(Note: This may require a fair amount of disk space for PyTorch)*
 
+    If you use conda, activate the environment first. The app will prefer the active conda interpreter:
+    ```bash
+    conda activate mainenv
+    pip install openai-whisper
+    ```
+
+    You can also force a specific interpreter:
+    ```bash
+    export LAZY2TYPE_PYTHON="$CONDA_PREFIX/bin/python"
+    ```
+
 4.  Check if everything is ready:
     ```bash
     npm run doctor
@@ -106,6 +117,19 @@ Your settings (like preferred model) are saved automatically.
 -   **Windows**: `%APPDATA%\2lazy2type-nodejs\Config\`
 
 To reset configurations, simply delete the folder or files within.
+
+### Microphone troubleshooting
+
+On macOS, make sure the terminal app you run `npm start` from has microphone permission in **System Settings → Privacy & Security → Microphone**.
+
+The recorder uses SoX directly and writes 16 kHz mono WAV files for Whisper. If your default input is wrong, set the device before starting:
+
+```bash
+export LAZY2TYPE_AUDIO_DEVICE="Your Input Device Name"
+npm start
+```
+
+If recordings are silent, `2lazy2type` now reports that instead of sending silence/noise to Whisper, which prevents repeated hallucinated text.
 
 ## 🤝 Contributing
 
